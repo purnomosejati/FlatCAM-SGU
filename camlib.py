@@ -9,8 +9,9 @@
 #from scipy import optimize
 #import traceback
 
-from cStringIO import StringIO
-from numpy import arctan2, Inf, array, sqrt, pi, ceil, sin, cos, dot, float32, \
+import ShapelyCompat  # Must precede geometry usage (Shapely 1.x behaviour)
+from io import StringIO
+from numpy import arctan2, inf, array, sqrt, pi, ceil, sin, cos, dot, float32, \
     transpose
 from numpy.linalg import solve, norm
 import re
@@ -28,7 +29,7 @@ from rtree import index as rtindex
 from shapely.geometry import Polygon, LineString, Point, LinearRing
 from shapely.geometry import MultiPoint, MultiPolygon
 from shapely.geometry import box as shply_box
-from shapely.ops import cascaded_union
+from shapely.ops import unary_union
 import shapely.affinity as affinity
 from shapely.wkt import loads as sloads
 from shapely.wkt import dumps as sdumps
@@ -37,7 +38,7 @@ from shapely.geometry.base import BaseGeometry
 # Used for solid polygons in Matplotlib
 # from descartes.patch import PolygonPatch
 
-import simplejson as json
+import json
 # TODO: Commented for FlatCAM packaging with cx_freeze
 
 import xml.etree.ElementTree as ET
@@ -173,14 +174,14 @@ class Geometry(object):
         flat_geometry = self.flatten(pathonly=True)
         log.debug("%d paths" % len(flat_geometry))
         polygon=Polygon(points)
-        toolgeo=cascaded_union(polygon)
+        toolgeo=unary_union(polygon)
         diffs=[]
         for target in flat_geometry:
             if type(target) == LineString or type(target) == LinearRing:
                 diffs.append(target.difference(toolgeo))
             else:
                 log.warning("Not implemented.")
-        self.solid_geometry=cascaded_union(diffs)
+        self.solid_geometry=unary_union(diffs)
 
     def bounds(self):
         """
@@ -197,7 +198,7 @@ class Geometry(object):
             if len(self.solid_geometry) == 0:
                 log.debug('solid_geometry is empty []')
                 return 0, 0, 0, 0
-            return cascaded_union(self.solid_geometry).bounds
+            return unary_union(self.solid_geometry).bounds
         else:
             return self.solid_geometry.bounds
 
@@ -418,10 +419,10 @@ class Geometry(object):
             self.solid_geometry = []
 
         if type(self.solid_geometry) is list:
-            self.solid_geometry.append(cascaded_union(geos))
+            self.solid_geometry.append(unary_union(geos))
         else:  # It's shapely geometry
-            self.solid_geometry = cascaded_union([self.solid_geometry,
-                                                  cascaded_union(geos)])
+            self.solid_geometry = unary_union([self.solid_geometry,
+                                                  unary_union(geos)])
 
         return
 
@@ -673,7 +674,7 @@ class Geometry(object):
                 # then reverse coordinates.
                 # but prefer the first one if last == first
                 if pt != candidate.coords[0] and pt == candidate.coords[-1]:
-                    candidate.coords = list(candidate.coords)[::-1]
+                    candidate = type(candidate)(list(candidate.coords)[::-1])
 
                 # Straight line from current_pt to pt.
                 # Is the toolpath inside the geometry?
@@ -684,7 +685,7 @@ class Geometry(object):
                     #log.debug("Walk to path #%d is inside. Joining." % path_count)
 
                     # Completely inside. Append...
-                    geo.coords = list(geo.coords) + list(candidate.coords)
+                    geo = type(geo)(list(geo.coords) + list(candidate.coords))
                     # try:
                     #     last = optimized_paths[-1]
                     #     last.coords = list(last.coords) + list(geo.coords)
@@ -751,22 +752,22 @@ class Geometry(object):
                 if type(left) == LineString:
                     if left.coords[0] == geo.coords[0]:
                         storage.remove(left)
-                        geo.coords = list(geo.coords)[::-1] + list(left.coords)
+                        geo = type(geo)(list(geo.coords)[::-1] + list(left.coords))
                         continue
 
                     if left.coords[-1] == geo.coords[0]:
                         storage.remove(left)
-                        geo.coords = list(left.coords) + list(geo.coords)
+                        geo = type(geo)(list(left.coords) + list(geo.coords))
                         continue
 
                     if left.coords[0] == geo.coords[-1]:
                         storage.remove(left)
-                        geo.coords = list(geo.coords) + list(left.coords)
+                        geo = type(geo)(list(geo.coords) + list(left.coords))
                         continue
 
                     if left.coords[-1] == geo.coords[-1]:
                         storage.remove(left)
-                        geo.coords = list(geo.coords) + list(left.coords)[::-1]
+                        geo = type(geo)(list(geo.coords) + list(left.coords)[::-1])
                         continue
 
                 _, right = storage.nearest(geo.coords[-1])
@@ -777,22 +778,22 @@ class Geometry(object):
                 if type(right) == LineString:
                     if right.coords[0] == geo.coords[-1]:
                         storage.remove(right)
-                        geo.coords = list(geo.coords) + list(right.coords)
+                        geo = type(geo)(list(geo.coords) + list(right.coords))
                         continue
 
                     if right.coords[-1] == geo.coords[-1]:
                         storage.remove(right)
-                        geo.coords = list(geo.coords) + list(right.coords)[::-1]
+                        geo = type(geo)(list(geo.coords) + list(right.coords)[::-1])
                         continue
 
                     if right.coords[0] == geo.coords[0]:
                         storage.remove(right)
-                        geo.coords = list(geo.coords)[::-1] + list(right.coords)
+                        geo = type(geo)(list(geo.coords)[::-1] + list(right.coords))
                         continue
 
                     if right.coords[-1] == geo.coords[0]:
                         storage.remove(right)
-                        geo.coords = list(left.coords) + list(geo.coords)
+                        geo = type(geo)(list(right.coords) + list(geo.coords))
                         continue
 
                 # right is either a LinearRing or it does not connect
@@ -881,7 +882,7 @@ class Geometry(object):
 
         :return: None
         """
-        self.solid_geometry = [cascaded_union(self.solid_geometry)]
+        self.solid_geometry = [unary_union(self.solid_geometry)]
 
     def export_svg(self, scale_factor=0.00):
         """
@@ -890,7 +891,7 @@ class Geometry(object):
         :return: SVG Element
         """
         # Make sure we see a Shapely Geometry class and not a list
-        geom = cascaded_union(self.flatten())
+        geom = unary_union(self.flatten())
 
         # scale_factor is a multiplication factor for the SVG stroke-width used within shapely's svg export
 
@@ -1210,13 +1211,13 @@ class ApertureMacro:
             if r <= 0:
                 break
             ring = Point((x, y)).buffer(r).exterior.buffer(thickness/2.0)
-            result = cascaded_union([result, ring])
+            result = unary_union([result, ring])
             i += 1
 
         ## Crosshair
         hor = LineString([(x - cross_len, y), (x + cross_len, y)]).buffer(cross_th/2.0, cap_style=2)
         ver = LineString([(x, y-cross_len), (x, y + cross_len)]).buffer(cross_th/2.0, cap_style=2)
-        result = cascaded_union([result, hor, ver])
+        result = unary_union([result, hor, ver])
 
         return {"pol": 1, "geometry": result}
 
@@ -1412,7 +1413,7 @@ class Gerber (Geometry):
         # Optional start with G02 or G03, optional end with D01 or D02 with
         # optional coordinates but at least one in any order.
         self.circ_re = re.compile(r'^(?:G0?([23]))?(?=.*X([\+-]?\d+))?(?=.*Y([\+-]?\d+))' +
-                                  '?(?=.*I([\+-]?\d+))?(?=.*J([\+-]?\d+))?[XYIJ][^D]*(?:D0([12]))?\*$')
+                                  r'?(?=.*I([\+-]?\d+))?(?=.*J([\+-]?\d+))?[XYIJ][^D]*(?:D0([12]))?\*$')
 
         # G01/2/3 Occurring without coordinates
         self.interp_re = re.compile(r'^(?:G0?([123]))\*')
@@ -2142,9 +2143,9 @@ class Gerber (Geometry):
                     # TODO: Remove when bug fixed
                     if len(poly_buffer) > 0:
                         if current_polarity == 'D':
-                            self.solid_geometry = self.solid_geometry.union(cascaded_union(poly_buffer))
+                            self.solid_geometry = self.solid_geometry.union(unary_union(poly_buffer))
                         else:
-                            self.solid_geometry = self.solid_geometry.difference(cascaded_union(poly_buffer))
+                            self.solid_geometry = self.solid_geometry.difference(unary_union(poly_buffer))
                         poly_buffer = []
 
                     current_polarity = match.group(1)
@@ -2216,24 +2217,24 @@ class Gerber (Geometry):
                 self.solid_geometry = poly_buffer
                 return
 
-            log.warn("Joining %d polygons." % len(poly_buffer))
+            log.warning("Joining %d polygons." % len(poly_buffer))
             if self.use_buffer_for_union:
                 log.debug("Union by buffer...")
                 new_poly = MultiPolygon(poly_buffer)
                 new_poly = new_poly.buffer(0.00000001)
                 new_poly = new_poly.buffer(-0.00000001)
-                log.warn("Union(buffer) done.")
+                log.warning("Union(buffer) done.")
             else:
                 log.debug("Union by union()...")
-                new_poly = cascaded_union(poly_buffer)
+                new_poly = unary_union(poly_buffer)
                 new_poly = new_poly.buffer(0)
-                log.warn("Union done.")
+                log.warning("Union done.")
             if current_polarity == 'D':
                 self.solid_geometry = self.solid_geometry.union(new_poly)
             else:
                 self.solid_geometry = self.solid_geometry.difference(new_poly)
 
-        except Exception, err:
+        except Exception as err:
             ex_type, ex, tb = sys.exc_info()
             traceback.print_tb(tb)
             #print traceback.format_exc()
@@ -2276,7 +2277,7 @@ class Gerber (Geometry):
                 p2 = Point(loc[0], loc[1] - 0.5 * (height - width))
                 c1 = p1.buffer(width * 0.5)
                 c2 = p2.buffer(width * 0.5)
-            return cascaded_union([c1, c2]).convex_hull
+            return unary_union([c1, c2]).convex_hull
 
         if aperture['type'] == 'P':  # Regular polygon
             loc = location.coords[0]
@@ -2319,7 +2320,7 @@ class Gerber (Geometry):
         #
         # self.do_flashes()
         #
-        # self.solid_geometry = cascaded_union(self.buffered_paths +
+        # self.solid_geometry = unary_union(self.buffered_paths +
         #                                      [poly['polygon'] for poly in self.regions] +
         #                                      self.flash_geometry)
 
@@ -2841,13 +2842,13 @@ class CNCjob(Geometry):
         
         # sort the tools list by the second item in tuple (here we have a dict with diameter of the tool)
         # so we actually are sorting the tools by diameter
-        sorted_tools = sorted(exobj.tools.items(), key = lambda x: x[1])
+        sorted_tools = sorted(list(exobj.tools.items()), key=lambda x: x[1]["C"])
         if tools == "all":
             tools = [i[0] for i in sorted_tools]   # we get a array of ordered tools
             log.debug("Tools 'all' and sorted are: %s" % str(tools))
         else:
             selected_tools = [x.strip() for x in tools.split(",")]  # we strip spaces and also separate the tools by ','
-            selected_tools = filter(lambda i: i in selected_tools, selected_tools)
+            selected_tools = [i for i in selected_tools if i in selected_tools]
 
             # Create a sorted list of selected tools from the sorted_tools list
             tools = [i for i, j in sorted_tools for k in selected_tools if i == k]
@@ -3001,7 +3002,7 @@ class CNCjob(Geometry):
                 # but prefer the first one if last point == first point
                 # then reverse coordinates.
                 if pt != geo.coords[0] and pt == geo.coords[-1]:
-                    geo.coords = list(geo.coords)[::-1]
+                    geo = type(geo)(list(geo.coords)[::-1])
 
                 #---------- Single depth/pass --------
                 if not multidepth:
@@ -3057,13 +3058,13 @@ class CNCjob(Geometry):
                         # Reverse coordinates if not a loop so we can continue
                         # cutting without returning to the beginhing.
                         if type(geo) == LineString:
-                            geo.coords = list(geo.coords)[::-1]
+                            geo = type(geo)(list(geo.coords)[::-1])
                             reverse = True
 
                     # If geometry is reversed, revert.
                     if reverse:
                         if type(geo) == LineString:
-                            geo.coords = list(geo.coords)[::-1]
+                            geo = type(geo)(list(geo.coords)[::-1])
 
                     # Lift the tool
                     self.gcode += "G00 Z%.4f\n" % self.z_move
@@ -3273,7 +3274,7 @@ class CNCjob(Geometry):
 
     def create_geometry(self):
         # TODO: This takes forever. Too much data?
-        self.solid_geometry = cascaded_union([geo['geom'] for geo in self.gcode_parsed])
+        self.solid_geometry = unary_union([geo['geom'] for geo in self.gcode_parsed])
 
     def linear2gcode(self, linear, tolerance=0, down=True, up=True,
                      zcut=None, ztravel=None, downrate=None,
@@ -3418,13 +3419,13 @@ class CNCjob(Geometry):
             if g['kind'][0] == 'T': travels.append(g)
 
         # Used to determine the overall board size
-        self.solid_geometry = cascaded_union([geo['geom'] for geo in self.gcode_parsed])
+        self.solid_geometry = unary_union([geo['geom'] for geo in self.gcode_parsed])
 
         # Convert the cuts and travels into single geometry objects we can render as svg xml
         if travels:
-            travelsgeom = cascaded_union([geo['geom'] for geo in travels])
+            travelsgeom = unary_union([geo['geom'] for geo in travels])
         if cuts:
-            cutsgeom = cascaded_union([geo['geom'] for geo in cuts])
+            cutsgeom = unary_union([geo['geom'] for geo in cuts])
 
         # Render the SVG Xml
         # The scale factor affects the size of the lines, and the stroke color adds different formatting for each set
@@ -3438,10 +3439,10 @@ class CNCjob(Geometry):
         return svg_elem
 
 # def get_bounds(geometry_set):
-#     xmin = Inf
-#     ymin = Inf
-#     xmax = -Inf
-#     ymax = -Inf
+#     xmin = inf
+#     ymin = inf
+#     xmax = -inf
+#     ymax = -inf
 #
 #     #print "Getting bounds of:", str(geometry_set)
 #     for gs in geometry_set:
@@ -3457,10 +3458,10 @@ class CNCjob(Geometry):
 #     return [xmin, ymin, xmax, ymax]
 
 def get_bounds(geometry_list):
-    xmin = Inf
-    ymin = Inf
-    xmax = -Inf
-    ymax = -Inf
+    xmin = inf
+    ymin = inf
+    xmax = -inf
+    ymax = -inf
 
     #print "Getting bounds of:", str(geometry_set)
     for gs in geometry_list:
@@ -3962,7 +3963,7 @@ class FlatCAMRTree(object):
         :param pt:
         :return:
         """
-        return self.rti.nearest(pt, objects=True).next()
+        return next(self.rti.nearest(pt, objects=True))
 
 
 class FlatCAMRTreeStorage(FlatCAMRTree):

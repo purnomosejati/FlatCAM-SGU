@@ -1,3 +1,4 @@
+import importlib
 import pkgutil
 import sys
 
@@ -18,7 +19,7 @@ import tclCommands.TclCommandOpenGerber
 __all__ = []
 
 for loader, name, is_pkg in pkgutil.walk_packages(__path__):
-    module = loader.find_module(name).load_module(name)
+    importlib.import_module(__name__ + "." + name)
     __all__.append(name)
 
 
@@ -39,9 +40,9 @@ def register_all_commands(app, commands):
     :return: None
     """
 
-    tcl_modules = {k: v for k, v in sys.modules.items() if k.startswith('tclCommands.TclCommand')}
+    tcl_modules = {k: v for k, v in list(sys.modules.items()) if k.startswith('tclCommands.TclCommand')}
 
-    for key, mod in tcl_modules.items():
+    for key, mod in list(tcl_modules.items()):
         if key != 'tclCommands.TclCommand':
             class_name = key.split('.')[1]
             class_type = getattr(mod, class_name)

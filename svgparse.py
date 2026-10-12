@@ -22,7 +22,7 @@
 import xml.etree.ElementTree as ET
 import re
 import itertools
-from svg.path import Path, Line, Arc, CubicBezier, QuadraticBezier, parse_path
+from svg.path import Path, Line, Linear, Close, Move, Arc, CubicBezier, QuadraticBezier, parse_path
 from shapely.geometry import LinearRing, LineString, Point
 from shapely.affinity import translate, rotate, scale, skew, affine_transform
 import numpy as np
@@ -69,8 +69,12 @@ def path2shapely(path, res=1.0):
 
     for component in path:
 
-        # Line
-        if isinstance(component, Line):
+        # Moves carry no geometry
+        if isinstance(component, Move):
+            continue
+
+        # Line or Close (straight line back to the subpath start)
+        if isinstance(component, Linear):
             start = component.start
             x, y = start.real, start.imag
             if len(points) == 0 or points[-1] != (x, y):
@@ -105,10 +109,10 @@ def path2shapely(path, res=1.0):
             points.append((end.real, end.imag))
             continue
 
-        log.warning("I don't know what this is:", component)
+        log.warning("I don't know what this is: %s" % str(component))
         continue
 
-    if path.closed:
+    if len(path) > 0 and isinstance(path[-1], Close):
         return LinearRing(points)
     else:
         return LineString(points)
@@ -268,7 +272,7 @@ def getsvggeo(node):
     :return: List of Shapely geometry
     :rtype: list
     """
-    kind = re.search('(?:\{.*\})?(.*)$', node.tag).group(1)
+    kind = re.search(r'(?:\{.*\})?(.*)$', node.tag).group(1)
     geo = []
 
     # Recurse
@@ -517,6 +521,6 @@ if __name__ == "__main__":
     tree = ET.parse('tests/svg/drawing.svg')
     root = tree.getroot()
     ns = re.search(r'\{(.*)\}', root.tag).group(1)
-    print ns
+    print(ns)
     for geo in getsvggeo(root):
-        print geo
+        print(geo)

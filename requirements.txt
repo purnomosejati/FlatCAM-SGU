@@ -1,13 +1,11 @@
-# This file contains python only requirements to be installed with pip
-# Python packages that cannot be installed with pip (e.g. PyQT4) are not included.
-# Usage: pip install -r requirements.txt
-# Usage: python2 -m pip install -r requirements.txt
-
-matplotlib==1.4
-shapely==1.7.1
-simplejson
+# Python 3 requirements (tested with Python 3.14 on macOS arm64)
+# Usage: python3 -m pip install -r requirements.txt
+# Tcl shell also needs Tk support in Python (macOS Homebrew: brew install python-tk@3.14)
+PyQt5>=5.15
+vispy>=0.17
+PyOpenGL>=3.1.7
+numpy>=2.0
+shapely>=2.0
 rtree
-scipy
-svg.path==2.1.1
-pywin32==228
-cx_freeze==4.3.4
+matplotlib  # tests only
+svg.path>=7.0

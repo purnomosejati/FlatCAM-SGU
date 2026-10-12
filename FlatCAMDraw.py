@@ -1,4 +1,4 @@
-from PyQt4 import QtGui, QtCore, Qt
+from PyQt5 import QtCore, QtGui, QtWidgets
 import FlatCAMApp
 from camlib import *
 from FlatCAMTool import FlatCAMTool
@@ -7,13 +7,13 @@ from ObjectUI import LengthEntry
 from shapely.geometry import Polygon, LineString, Point, LinearRing
 from shapely.geometry import MultiPoint, MultiPolygon
 from shapely.geometry import box as shply_box
-from shapely.ops import cascaded_union, unary_union
+from shapely.ops import unary_union
 import shapely.affinity as affinity
 from shapely.wkt import loads as sloads
 from shapely.wkt import dumps as sdumps
 from shapely.geometry.base import BaseGeometry
 
-from numpy import arctan2, Inf, array, sqrt, pi, ceil, sin, cos, sign, dot
+from numpy import arctan2, inf, array, sqrt, pi, ceil, sin, cos, sign, dot
 from numpy.linalg import solve
 
 #from mpl_toolkits.axes_grid.anchored_artists import AnchoredDrawingArea
@@ -35,11 +35,11 @@ class BufferSelectionTool(FlatCAMTool):
         self.fcdraw = fcdraw
 
         ## Title
-        title_label = QtGui.QLabel("<font size=4><b>%s</b></font>" % self.toolName)
+        title_label = QtWidgets.QLabel("<font size=4><b>%s</b></font>" % self.toolName)
         self.layout.addWidget(title_label)
 
         ## Form Layout
-        form_layout = QtGui.QFormLayout()
+        form_layout = QtWidgets.QFormLayout()
         self.layout.addLayout(form_layout)
 
         ## Buffer distance
@@ -47,10 +47,10 @@ class BufferSelectionTool(FlatCAMTool):
         form_layout.addRow("Buffer distance:", self.buffer_distance_entry)
 
         ## Buttons
-        hlay = QtGui.QHBoxLayout()
+        hlay = QtWidgets.QHBoxLayout()
         self.layout.addLayout(hlay)
         hlay.addStretch()
-        self.buffer_button = QtGui.QPushButton("Buffer")
+        self.buffer_button = QtWidgets.QPushButton("Buffer")
         hlay.addWidget(self.buffer_button)
 
         self.layout.addStretch()
@@ -596,7 +596,7 @@ class FlatCAMDraw(QtCore.QObject):
         self.canvas = app.plotcanvas
 
         ### Drawing Toolbar ###
-        self.drawing_toolbar = QtGui.QToolBar('Drawing')
+        self.drawing_toolbar = QtWidgets.QToolBar('Drawing')
         self.drawing_toolbar.setDisabled(disabled)
         self.app.ui.addToolBar(self.drawing_toolbar)
         self.select_btn = self.drawing_toolbar.addAction(QtGui.QIcon('share/pointer32.png'), "Select 'Esc'")
@@ -614,19 +614,19 @@ class FlatCAMDraw(QtCore.QObject):
         self.delete_btn = self.drawing_toolbar.addAction(QtGui.QIcon('share/deleteshape32.png'), "Delete Shape '-'")
 
         ### Snap Toolbar ###
-        self.snap_toolbar = QtGui.QToolBar('Snap')
+        self.snap_toolbar = QtWidgets.QToolBar('Snap')
         self.grid_snap_btn = self.snap_toolbar.addAction(QtGui.QIcon('share/grid32.png'), 'Snap to grid')
-        self.grid_gap_x_entry = QtGui.QLineEdit()
+        self.grid_gap_x_entry = QtWidgets.QLineEdit()
         self.grid_gap_x_entry.setMaximumWidth(70)
         self.grid_gap_x_entry.setToolTip("Grid X distance")
         self.snap_toolbar.addWidget(self.grid_gap_x_entry)
-        self.grid_gap_y_entry = QtGui.QLineEdit()
+        self.grid_gap_y_entry = QtWidgets.QLineEdit()
         self.grid_gap_y_entry.setMaximumWidth(70)
         self.grid_gap_y_entry.setToolTip("Grid Y distante")
         self.snap_toolbar.addWidget(self.grid_gap_y_entry)
 
         self.corner_snap_btn = self.snap_toolbar.addAction(QtGui.QIcon('share/corner32.png'), 'Snap to corner')
-        self.snap_max_dist_entry = QtGui.QLineEdit()
+        self.snap_max_dist_entry = QtWidgets.QLineEdit()
         self.snap_max_dist_entry.setMaximumWidth(70)
         self.snap_max_dist_entry.setToolTip("Max. magnet distance")
         self.snap_toolbar.addWidget(self.snap_max_dist_entry)
@@ -635,7 +635,7 @@ class FlatCAMDraw(QtCore.QObject):
         self.app.ui.addToolBar(self.snap_toolbar)
 
         ### Application menu ###
-        self.menu = QtGui.QMenu("Drawing")
+        self.menu = QtWidgets.QMenu("Drawing")
         self.app.ui.menu.insertMenu(self.app.ui.menutoolaction, self.menu)
         # self.select_menuitem = self.menu.addAction(QtGui.QIcon('share/pointer16.png'), "Select 'Esc'")
         # self.add_circle_menuitem = self.menu.addAction(QtGui.QIcon('share/circle16.png'), 'Add Circle')
@@ -853,7 +853,7 @@ class FlatCAMDraw(QtCore.QObject):
     def cutpath(self):
         selected = self.get_selected()
         tools = selected[1:]
-        toolgeo = cascaded_union([shp.geo for shp in tools])
+        toolgeo = unary_union([shp.geo for shp in tools])
 
         target = selected[0]
         if type(target.geo) == Polygon:
@@ -951,7 +951,7 @@ class FlatCAMDraw(QtCore.QObject):
         pos = self.canvas.vispy_canvas.translate_coords(event.pos)
 
         # Selection with left mouse button
-        if self.active_tool is not None and event.button is 1:
+        if self.active_tool is not None and event.button == 1:
             # Dispatch event to active_tool
             # msg = self.active_tool.click(self.snap(event.xdata, event.ydata))
             msg = self.active_tool.click(self.snap(pos[0], pos[1]))
@@ -1247,7 +1247,7 @@ class FlatCAMDraw(QtCore.QObject):
         """
 
         snap_x, snap_y = (x, y)
-        snap_distance = Inf
+        snap_distance = inf
 
         ### Object (corner?) snap
         ### No need for the objects, just the coordinates
@@ -1301,7 +1301,7 @@ class FlatCAMDraw(QtCore.QObject):
         :return: None.
         """
 
-        results = cascaded_union([t.geo for t in self.get_selected()])
+        results = unary_union([t.geo for t in self.get_selected()])
 
         # Delete originals.
         for_deletion = [s for s in self.get_selected()]
@@ -1344,7 +1344,7 @@ class FlatCAMDraw(QtCore.QObject):
     def subtract(self):
         selected = self.get_selected()
         tools = selected[1:]
-        toolgeo = cascaded_union([shp.geo for shp in tools])
+        toolgeo = unary_union([shp.geo for shp in tools])
         result = selected[0].geo.difference(toolgeo)
 
         self.delete_shape(selected[0])
@@ -1363,7 +1363,7 @@ class FlatCAMDraw(QtCore.QObject):
             self.app.inform.emit("[warning] Invalid distance for buffering.")
             return
 
-        pre_buffer = cascaded_union([t.geo for t in selected])
+        pre_buffer = unary_union([t.geo for t in selected])
         results = pre_buffer.buffer(buf_distance)
         self.add_shape(DrawToolShape(results))
 

@@ -13,6 +13,12 @@ Build instructions here:
 
 https://github.com/Denvi/FlatCAM/releases/tag/v8.4-dev
 
+Python 3 port (macOS / Linux) by Purnomo Sejati, Swiss German University (2026):
+
+    python3 -m venv .venv
+    .venv/bin/pip install -r requirements.txt
+    .venv/bin/python FlatCAM.py
+
 This fork features:
 
 - "Clear non-copper" feature, supporting multi-tool work.

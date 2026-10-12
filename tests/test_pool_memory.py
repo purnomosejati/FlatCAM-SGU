@@ -24,12 +24,12 @@ class PoolMemoryCase(unittest.TestCase):
         for i in range(5):
             self.results[i] = self.pool.map_async(task, [self.data])
 
-        for i in self.results.keys():
+        for i in list(self.results.keys()):
             self.results[i].wait()
-            print "result", i, len(self.results[i].get()[0])
+            print("result", i, len(self.results[i].get()[0]))
             del self.results[i]
 
-        print "ended"
+        print("ended")
         time.sleep(5)
 
         del self.data
@@ -38,7 +38,7 @@ class PoolMemoryCase(unittest.TestCase):
         time.sleep(2)
 
         gc.collect()
-        print "collected", self.pool
+        print("collected", self.pool)
 
         time.sleep(5)
-        print "exit"
+        print("exit")

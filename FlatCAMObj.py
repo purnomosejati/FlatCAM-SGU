@@ -1,5 +1,5 @@
-from cStringIO import StringIO
-from PyQt4 import QtCore
+from io import StringIO
+from PyQt5 import QtCore, QtWidgets
 from copy import copy
 from ObjectUI import *
 import FlatCAMApp
@@ -26,6 +26,8 @@ class FlatCAMObj(QtCore.QObject):
     # Instance of the application to which these are related.
     # The app should set this value.
     app = None
+
+    optionChanged = QtCore.pyqtSignal(str)
 
     def __init__(self, name):
         """
@@ -88,7 +90,7 @@ class FlatCAMObj(QtCore.QObject):
         if key == 'plot':
             self.visible = self.options['plot']
 
-        self.emit(QtCore.SIGNAL("optionChanged"), key)
+        self.optionChanged.emit(key)
 
     def set_ui(self, ui):
         self.ui = ui
@@ -194,7 +196,7 @@ class FlatCAMObj(QtCore.QObject):
         try:
             self.form_fields[option].set_value(self.options[option])
         except KeyError:
-            self.app.log.warn("Tried to set an option or field that does not exist: %s" % option)
+            self.app.log.warning("Tried to set an option or field that does not exist: %s" % option)
 
     def read_form_item(self, option):
         """
@@ -470,7 +472,7 @@ class FlatCAMGerber(FlatCAMObj, Gerber):
                            [pts[6], pts[7], pts[8]],
                            [pts[9], pts[10], pts[11]]]}
             cuts = cases[self.options['gaps']]
-            geo_obj.solid_geometry = cascaded_union([LineString(segment) for segment in cuts])
+            geo_obj.solid_geometry = unary_union([LineString(segment) for segment in cuts])
 
         # TODO: Check for None
         self.app.new_object("geometry", name, geo_init)
@@ -497,7 +499,7 @@ class FlatCAMGerber(FlatCAMObj, Gerber):
             FlatCAMApp.App.log.error("Overlap and margin values needed")
             return
 
-        print "non-copper clear button clicked", tools, over, margin
+        print("non-copper clear button clicked", tools, over, margin)
 
         # Sort tools in descending order
         tools.sort(reverse=True)
@@ -809,7 +811,7 @@ class FlatCAMExcellon(FlatCAMObj, Excellon):
                 #    exc.to_form()
                 #    exc.read_form()
                 for option in exc.options:
-                    if option is not 'name':
+                    if option != 'name':
                         try:
                             exc_final.options[option] = exc.options[option]
                         except:
@@ -821,20 +823,20 @@ class FlatCAMExcellon(FlatCAMObj, Excellon):
                     exc_final.drills.append({"point": point, "tool": drill['tool']})
                 toolsrework=dict()
                 max_numeric_tool=0
-                for toolname in exc.tools.iterkeys():
+                for toolname in exc.tools.keys():
                     numeric_tool=int(toolname)
                     if numeric_tool>max_numeric_tool:
                         max_numeric_tool=numeric_tool
                     toolsrework[exc.tools[toolname]['C']]=toolname
 
                 #exc_final as last because names from final tools will be used
-                for toolname in exc_final.tools.iterkeys():
+                for toolname in exc_final.tools.keys():
                     numeric_tool=int(toolname)
                     if numeric_tool>max_numeric_tool:
                         max_numeric_tool=numeric_tool
                     toolsrework[exc_final.tools[toolname]['C']]=toolname
 
-                for toolvalues in toolsrework.iterkeys():
+                for toolvalues in toolsrework.keys():
                     if toolsrework[toolvalues] in exc_final.tools:
                         if exc_final.tools[toolsrework[toolvalues]]!={"C": toolvalues}:
                             exc_final.tools[str(max_numeric_tool+1)]={"C": toolvalues}
@@ -855,10 +857,10 @@ class FlatCAMExcellon(FlatCAMObj, Excellon):
         self.ui.tools_table.setSortingEnabled(False)
         i = 0
         for tool in self.tools:
-            id = QtGui.QTableWidgetItem(tool)
+            id = QtWidgets.QTableWidgetItem(tool)
             id.setFlags(QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled)
             self.ui.tools_table.setItem(i, 0, id)  # Tool name/id
-            dia = QtGui.QTableWidgetItem(str(self.tools[tool]['C']))
+            dia = QtWidgets.QTableWidgetItem(str(self.tools[tool]['C']))
             dia.setFlags(QtCore.Qt.ItemIsEnabled)
             self.ui.tools_table.setItem(i, 1, dia)  # Diameter
             i += 1
@@ -1155,10 +1157,10 @@ class FlatCAMCNCjob(FlatCAMObj, CNCjob):
         self.read_form()
 
         try:
-            filename = QtGui.QFileDialog.getSaveFileName(caption="Export G-Code ...",
-                                                         directory=self.app.defaults["last_folder"])
+            filename = QtWidgets.QFileDialog.getSaveFileName(caption="Export G-Code ...",
+                                                         directory=self.app.defaults["last_folder"])[0]
         except TypeError:
-            filename = QtGui.QFileDialog.getSaveFileName(caption="Export G-Code ...")
+            filename = QtWidgets.QFileDialog.getSaveFileName(caption="Export G-Code ...")[0]
 
         preamble = str(self.ui.prepend_text.get_value())
         postamble = str(self.ui.append_text.get_value())
@@ -1197,7 +1199,7 @@ class FlatCAMCNCjob(FlatCAMObj, CNCjob):
 
             yield line
 
-        raise StopIteration
+        return
 
     def export_gcode(self, filename, preamble='', postamble=''):
 

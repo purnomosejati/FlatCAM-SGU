@@ -1,3 +1,4 @@
+import ShapelyCompat  # Shapely 1.x behaviour, also needed in pool workers
 from vispy.visuals import CompoundVisual, LineVisual, MeshVisual, TextVisual, MarkersVisual
 from vispy.scene.visuals import VisualNode, generate_docstring, visuals
 from vispy.gloo import set_state
@@ -45,7 +46,7 @@ def _update_shape_buffers(data, triangulation='glu'):
                     gt = GLUTess()
                     tri_tris, tri_pts = gt.triangulate(simple)
                 else:
-                    print "Triangulation type '%s' isn't implemented. Drawing only edges." % triangulation
+                    print("Triangulation type '%s' isn't implemented. Drawing only edges." % triangulation)
 
             # Prepare polygon edges
             if color is not None:
@@ -57,7 +58,7 @@ def _update_shape_buffers(data, triangulation='glu'):
         if len(tri_pts) > 0 and len(tri_tris) > 0:
             mesh_tris += tri_tris
             mesh_vertices += tri_pts
-            mesh_colors += [Color(face_color).rgba] * (len(tri_tris) / 3)
+            mesh_colors += [Color(face_color).rgba] * (len(tri_tris) // 3)
 
         # Appending data for line
         if len(pts) > 0:
@@ -100,7 +101,7 @@ def _linestring_to_segments(arr):
     :return: numpy.array
         Line segments
     """
-    return [arr[i / 2] for i in range(0, len(arr) * 2)][1:-1]
+    return [arr[i // 2] for i in range(0, len(arr) * 2)][1:-1]
 
 
 class ShapeGroup(object):
@@ -197,7 +198,7 @@ class ShapeCollectionVisual(CompoundVisual):
         self._line_width = line_width
         self._triangulation = triangulation
 
-        visuals_ = [self._lines[i / 2] if i % 2 else self._meshes[i / 2] for i in range(0, layers * 2)]
+        visuals_ = [self._lines[i // 2] if i % 2 else self._meshes[i // 2] for i in range(0, layers * 2)]
 
         CompoundVisual.__init__(self, visuals_, **kwargs)
 
@@ -263,7 +264,7 @@ class ShapeCollectionVisual(CompoundVisual):
         """
         # Remove process result
         self.results_lock.acquire(True)
-        if key in self.results.keys():
+        if key in list(self.results.keys()):
             del self.results[key]
         self.results_lock.release()
 
@@ -297,7 +298,7 @@ class ShapeCollectionVisual(CompoundVisual):
         self.update_lock.acquire(True)
 
         # Merge shapes buffers
-        for data in self.data.values():
+        for data in list(self.data.values()):
             if data['visible'] and 'line_pts' in data:
                 try:
                     line_pts[data['layer']] += data['line_pts']
@@ -308,7 +309,7 @@ class ShapeCollectionVisual(CompoundVisual):
                     mesh_vertices[data['layer']] += data['mesh_vertices']
                     mesh_colors[data['layer']] += data['mesh_colors']
                 except Exception as e:
-                    print "Data error", e
+                    print("Data error", e)
 
         # Updating meshes
         for i, mesh in enumerate(self._meshes):
@@ -343,15 +344,15 @@ class ShapeCollectionVisual(CompoundVisual):
         # Only one thread can update data
         self.results_lock.acquire(True)
 
-        for i in self.data.keys() if not indexes else indexes:
-            if i in self.results.keys():
+        for i in list(self.data.keys()) if not indexes else indexes:
+            if i in list(self.results.keys()):
                 try:
                     self.results[i].wait()                                  # Wait for process results
                     if i in self.data:
                         self.data[i] = self.results[i].get()[0]             # Store translated data
                         del self.results[i]
                 except Exception as e:
-                    print e, indexes
+                    print(e, indexes)
 
         self.results_lock.release()
 
@@ -491,13 +492,13 @@ class TextCollectionVisual(TextVisual):
         pos = []
 
         # Merge buffers
-        for data in self.data.values():
+        for data in list(self.data.values()):
             if data['visible']:
                 try:
                     labels += data['text']
                     pos += data['pos']
                 except Exception as e:
-                    print "Data error", e
+                    print("Data error", e)
 
         # Updating text
         if len(labels) > 0:
