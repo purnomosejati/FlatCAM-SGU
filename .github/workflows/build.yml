@@ -1,7 +1,8 @@
 # Builds installable FlatCAM packages:
-#   Windows 10/11 x64 -> FlatCAM-8.4-py3-Windows-x64-Setup.exe (Inno Setup)
+#   Windows 10/11 x64   -> FlatCAM-8.4-py3-Windows-x64-Setup.exe (Inno Setup)
 #   macOS Apple Silicon -> FlatCAM-8.4-py3-macOS-arm64.dmg
-# Runs on manual trigger and on version tags (v*); tags also create a GitHub Release.
+#   Linux x86_64        -> FlatCAM-8.4-py3-Linux-x86_64.AppImage and .tar.gz
+# Runs on manual trigger and on version tags (v*); tags also publish a GitHub Release.
 name: Build installers
 
 on:
@@ -9,12 +10,15 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-22.04]   # 22.04: older glibc, wider Linux compatibility
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -23,6 +27,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglu1-mesa libgl1 libegl1 libxkbcommon-x11-0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xfixes0 libxcb-shape0 libxcb-cursor0
 
       - name: Install dependencies
         run: |
@@ -44,17 +56,34 @@ jobs:
         if: runner.os == 'macOS'
         run: packaging/make_dmg.sh
 
+      - name: Linux AppImage and tarball
+        if: runner.os == 'Linux'
+        run: bash packaging/make_linux.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: FlatCAM-${{ runner.os }}
           path: |
             dist/*.exe
             dist/*.dmg
+            dist/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
         with:
-          files: |
-            dist/*.exe
-            dist/*.dmg
+          path: release
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: FlatCAM ${{ github.ref_name }}
+          body_path: packaging/RELEASE_NOTES.md
+          files: release/*
