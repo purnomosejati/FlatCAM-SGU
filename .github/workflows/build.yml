@@ -1,0 +1,60 @@
+# Builds installable FlatCAM packages:
+#   Windows 10/11 x64 -> FlatCAM-8.4-py3-Windows-x64-Setup.exe (Inno Setup)
+#   macOS Apple Silicon -> FlatCAM-8.4-py3-macOS-arm64.dmg
+# Runs on manual trigger and on version tags (v*); tags also create a GitHub Release.
+name: Build installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      # GUI tests need a real OpenGL driver, which CI runners lack; run the geometry tests only
+      - name: Geometry tests
+        run: python -m unittest tests.test_excellon tests.test_gerber_buffer tests.test_paint tests.test_pathconnect
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm packaging/FlatCAM.spec
+
+      - name: Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\FlatCAM.iss'
+
+      - name: macOS disk image
+        if: runner.os == 'macOS'
+        run: packaging/make_dmg.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlatCAM-${{ runner.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/*.dmg
